@@ -14,6 +14,7 @@ import android.util.Log;
 import android.widget.Button;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import java.util.HashMap;
@@ -61,6 +62,19 @@ public class SpeechPatternActivity extends AppCompatActivity {
     private void requestPermission() {
         ActivityCompat.requestPermissions(this,
                 new String[]{Manifest.permission.RECORD_AUDIO}, 1);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                initializeApp();
+            } else {
+                Toast.makeText(this, "Microphone permission is required for speech analysis",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private void initializeApp() {

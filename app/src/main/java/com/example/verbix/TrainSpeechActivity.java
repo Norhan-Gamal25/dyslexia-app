@@ -1,8 +1,14 @@
 package com.example.verbix;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -43,6 +49,12 @@ public class TrainSpeechActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         tryAnotherButton = findViewById(R.id.tryAnotherButton);
 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO}, 1);
+        }
+
 
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
 
@@ -74,7 +86,13 @@ public class TrainSpeechActivity extends AppCompatActivity {
 
             @Override
             public void onError(int error) {
-                // Called when an error occurs during speech recognition
+                String message = "Recognition error. Please try again.";
+                if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                    message = "Microphone permission is required.";
+                } else if (error == SpeechRecognizer.ERROR_NO_MATCH) {
+                    message = "Could not hear you clearly. Please try again.";
+                }
+                highlightedTextView.setText(message);
             }
 
             @Override
@@ -112,6 +130,16 @@ public class TrainSpeechActivity extends AppCompatActivity {
         });
 
         getWordFromFirestore();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1 && (grantResults.length == 0
+                || grantResults[0] != PackageManager.PERMISSION_GRANTED)) {
+            Toast.makeText(this, "Microphone permission is required for speech practice",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
 
@@ -156,13 +184,19 @@ public class TrainSpeechActivity extends AppCompatActivity {
     }
 
     private void compareAndHighlight(String spokenText) {
+        if (spokenText == null || spokenText.isEmpty()) {
+            highlightedTextView.setText("Could not hear you. Please try again.");
+            return;
+        }
+
         String targetWord = wordTextView.getText().toString();  // Keep original case
         spokenText = spokenText.substring(0, 1).toUpperCase() + spokenText.substring(1).toLowerCase();
 
         SpannableString spannableString = new SpannableString(spokenText);
 
         for (int i = 0; i < spokenText.length(); i++) {
-            if (i < targetWord.length() && spokenText.charAt(i) == targetWord.charAt(i)) {
+            if (i < targetWord.length() &&
+                    Character.toLowerCase(spokenText.charAt(i)) == Character.toLowerCase(targetWord.charAt(i))) {
                 spannableString.setSpan(
                         new ForegroundColorSpan(Color.parseColor("#228B22")),
                         i, i + 1,

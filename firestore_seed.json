@@ -1,0 +1,40 @@
+{
+  "instructions": "Create collection 'practicepara' and add these 3 documents. Each field below = one field in the document (Field name -> String value).",
+
+  "writingprac": {
+    "field": "value (each field is a paragraph)",
+    "paragraph1": "The boy and his dog went down to the big pond to play with the ball.",
+    "paragraph2": "Dad can see the red bird sitting on the tree near our house.",
+    "paragraph3": "We had a nice day at the beach and built a big sand castle.",
+    "paragraph4": "The little girl found a pretty flower growing in the garden.",
+    "paragraph5": "Bob and Pam went to bed after watching the big yellow moon."
+  },
+
+  "speechpat": {
+    "field": "value (each field is a paragraph)",
+    "paragraph1": "The cat sat on the mat and looked at the big fat rat.",
+    "paragraph2": "She sells sea shells down by the sea shore.",
+    "paragraph3": "The quick brown fox jumps over the lazy dog.",
+    "paragraph4": "I like to read books under the big tree on warm days.",
+    "paragraph5": "Peter picked a pot of pretty purple flowers for his mother."
+  },
+
+  "words": {
+    "field": "value (each field is one word)",
+    "word1": "cat",
+    "word2": "dog",
+    "word3": "bird",
+    "word4": "tree",
+    "word5": "ball",
+    "word6": "book",
+    "word7": "ship",
+    "word8": "bike",
+    "word9": "star",
+    "word10": "door",
+    "word11": "light",
+    "word12": "phone",
+    "word13": "water",
+    "word14": "window",
+    "word15": "garden"
+  }
+}

@@ -123,6 +123,11 @@ public class PracticeWritingActivity extends AppCompatActivity {
             return;
         }
 
+        if (recognizer == null) {
+            resultText.setText("Handwriting model is still loading. Please wait a moment and try again.");
+            return;
+        }
+
         recognizer.recognize(ink)
                 .addOnSuccessListener(result -> {
                     if (!result.getCandidates().isEmpty()) {

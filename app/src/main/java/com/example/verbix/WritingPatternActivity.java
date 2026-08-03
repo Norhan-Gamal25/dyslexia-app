@@ -656,11 +656,19 @@ public class WritingPatternActivity extends AppCompatActivity {
                 {"g", "q"}, {"f", "t"}, {"6", "9"}, {"2", "5"}
         };
 
-        for (String[] pair : commonReversals) {
-            if (original.contains(pair[0]) && scanned.contains(pair[1]) ||
-                    original.contains(pair[1]) && scanned.contains(pair[0])) {
-                String key = "Reversing " + pair[0] + "/" + pair[1];
-                patterns.put(key, patterns.getOrDefault(key, 0) + 1);
+        int len = Math.min(original.length(), scanned.length());
+        for (int j = 0; j < len; j++) {
+            char origChar = original.charAt(j);
+            char scannedChar = scanned.charAt(j);
+            if (origChar == scannedChar) continue;
+
+            for (String[] pair : commonReversals) {
+                if ((origChar == pair[0].charAt(0) && scannedChar == pair[1].charAt(0)) ||
+                        (origChar == pair[1].charAt(0) && scannedChar == pair[0].charAt(0))) {
+                    String key = "Reversing " + pair[0] + "/" + pair[1];
+                    patterns.put(key, patterns.getOrDefault(key, 0) + 1);
+                    break;
+                }
             }
         }
     }
@@ -707,12 +715,19 @@ public class WritingPatternActivity extends AppCompatActivity {
         visuallySimilar.put('s', new char[]{'5'});
         visuallySimilar.put('z', new char[]{'2'});
 
-        for (Map.Entry<Character, char[]> entry : visuallySimilar.entrySet()) {
-            for (char similar : entry.getValue()) {
-                if ((original.indexOf(entry.getKey()) != -1 && scanned.indexOf(similar) != -1) ||
-                        (original.indexOf(similar) != -1 && scanned.indexOf(entry.getKey()) != -1)) {
-                    String key = "Confusing visually similar " + entry.getKey() + " with " + similar;
-                    patterns.put(key, patterns.getOrDefault(key, 0) + 1);
+        int len = Math.min(original.length(), scanned.length());
+        for (int j = 0; j < len; j++) {
+            char origChar = original.charAt(j);
+            char scannedChar = scanned.charAt(j);
+            if (origChar == scannedChar) continue;
+
+            for (Map.Entry<Character, char[]> entry : visuallySimilar.entrySet()) {
+                for (char similar : entry.getValue()) {
+                    if ((origChar == entry.getKey() && scannedChar == similar) ||
+                            (origChar == similar && scannedChar == entry.getKey())) {
+                        String key = "Confusing visually similar " + entry.getKey() + " with " + similar;
+                        patterns.put(key, patterns.getOrDefault(key, 0) + 1);
+                    }
                 }
             }
         }
