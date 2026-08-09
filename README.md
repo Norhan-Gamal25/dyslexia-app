@@ -10,7 +10,7 @@
 
 > **Verbix** is an Android application designed to support children with learning disabilities, particularly dyslexia, which affects an estimated [5-10% of children worldwide](https://pmc.ncbi.nlm.nih.gov/articles/PMC6099274/#:~:text=Given%20that%20an%20estimated%205,and%20informed%20understandings%20of%20dyslexia.). Verbix uses on-device **OCR**, **digital-ink recognition** and **speech recognition** to analyze a child's handwriting and pronunciation, detect recurring letter confusions (for example **b/d**, **e/o**), and generate personalized exercises, stories and rewards that keep learning fun.
 
-![Verbix Mockup](https://github.com/user-attachments/assets/c0b3b6c1-3710-4874-8b53-47a6d4a7364e)
+![Verbix Mockup](screenshots/verbix-mockup.jpg)
 
 ---
 
