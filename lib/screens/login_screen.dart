@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/user_service.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _loading = false;
   bool _isRegistering = false;
+  UserRole _role = UserRole.child;
 
   @override
   void dispose() {
@@ -42,6 +44,10 @@ class _LoginScreenState extends State<LoginScreen> {
           password: password,
         );
       }
+      // Creates the account's role profile the first time (registration),
+      // or is a harmless no-op for a returning user.
+      await UserService.instance
+          .ensureUserDoc(role: _isRegistering ? _role : null);
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -130,6 +136,36 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 onSubmitted: (_) => _submit(),
               ),
+              if (_isRegistering) ...[
+                const SizedBox(height: 20),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('I am creating this account as a:',
+                      style: TextStyle(fontWeight: FontWeight.w500)),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('Child'),
+                        selected: _role == UserRole.child,
+                        onSelected: (_) =>
+                            setState(() => _role = UserRole.child),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('Parent'),
+                        selected: _role == UserRole.parent,
+                        onSelected: (_) =>
+                            setState(() => _role = UserRole.parent),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 24),
               _loading
                   ? const CircularProgressIndicator()

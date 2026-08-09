@@ -1,7 +1,10 @@
 import 'package:camera/camera.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import '../services/letter_analysis.dart';
+import '../services/session_service.dart';
 
 class WritingPatternScreen extends StatefulWidget {
   const WritingPatternScreen({super.key});
@@ -63,9 +66,11 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
       final inputImage = InputImage.fromFilePath(image.path);
       final result = await recognizer.processImage(inputImage);
       recognizer.close();
+      final comparison = LetterAnalysis.compare(_paragraph, result.text);
+      await _saveSession(comparison);
       if (mounted) {
         setState(() {
-          _result = _compare(result.text);
+          _result = _formatResult(comparison, result.text);
           _processing = false;
         });
       }
@@ -79,17 +84,36 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
     }
   }
 
-  String _compare(String scanned) {
-    final originalWords = _paragraph.split(RegExp(r'\s+'));
-    final scannedWords = scanned.split(RegExp(r'\s+'));
-    int correct = 0;
-    for (int i = 0; i < originalWords.length && i < scannedWords.length; i++) {
-      if (originalWords[i] == scannedWords[i]) correct++;
+  Future<void> _saveSession(WordComparisonResult comparison) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await SessionService.instance.saveSession(
+        childUid: uid,
+        type: 'writing',
+        result: comparison,
+      );
+    } catch (_) {
+      // Session history is a bonus for the parent dashboard - don't block
+      // the child if saving it fails (e.g. offline).
     }
-    final accuracy = originalWords.isEmpty ? 0.0 : (correct / originalWords.length) * 100;
-    return 'Accuracy: ${accuracy.toStringAsFixed(1)}%\n'
-        'Correct words: $correct/${originalWords.length}\n\n'
-        'Scanned text:\n$scanned';
+  }
+
+  String _formatResult(WordComparisonResult comparison, String scanned) {
+    final buffer = StringBuffer()
+      ..writeln('Accuracy: ${comparison.accuracy.toStringAsFixed(1)}%')
+      ..writeln(
+          'Correct words: ${comparison.correctWords}/${comparison.totalWords}');
+    if (comparison.confusions.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln('Letters to watch: '
+          '${comparison.confusions.keys.map(LetterAnalysis.labelFor).join(', ')}');
+    }
+    buffer
+      ..writeln()
+      ..writeln('Scanned text:')
+      ..write(scanned);
+    return buffer.toString();
   }
 
   @override
