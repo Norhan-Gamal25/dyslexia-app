@@ -274,7 +274,8 @@ class _SpeechPatternScreenState extends State<SpeechPatternScreen> {
     final buffer = StringBuffer()
       ..writeln('Accuracy: ${comparison.accuracy.toStringAsFixed(1)}%')
       ..writeln(
-        'Correct words: ${comparison.correctWords}/${comparison.totalWords}',
+        'Correct letters: '
+        '${comparison.correctLetters}/${comparison.totalLetters}',
       );
     if (comparison.confusions.isNotEmpty) {
       buffer.writeln();
@@ -381,8 +382,8 @@ class _AnalysisCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${comparison.correctWords} of ${comparison.totalWords} '
-              'word${comparison.totalWords == 1 ? '' : 's'} correct',
+              '${comparison.correctLetters} of ${comparison.totalLetters} '
+              'letter${comparison.totalLetters == 1 ? '' : 's'} correct',
               style: const TextStyle(fontSize: 14),
             ),
             if (missing.isNotEmpty) ...[

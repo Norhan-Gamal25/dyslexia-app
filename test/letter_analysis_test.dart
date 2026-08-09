@@ -10,6 +10,8 @@ void main() {
       );
       expect(result.correctWords, 6);
       expect(result.totalWords, 6);
+      expect(result.correctLetters, 15);
+      expect(result.totalLetters, 15);
       expect(result.accuracy, 100);
       expect(result.confusions, isEmpty);
     });
@@ -20,6 +22,7 @@ void main() {
         'the cat sat on a mat',
       );
       expect(result.correctWords, 6);
+      expect(result.correctLetters, 15);
       expect(result.accuracy, 100);
     });
 
@@ -32,16 +35,21 @@ void main() {
       );
       expect(result.correctWords, 6);
       expect(result.totalWords, 6);
+      expect(result.correctLetters, 15);
       expect(result.accuracy, 100);
     });
 
-    test('near-miss b/d counts as correct but flags a confusion', () {
+    test('a b/d mixup inside words lowers accuracy and flags the pair', () {
       final result = LetterAnalysis.compare(
         'big dog',
         'dig bog', // exact swap of b and d
       );
-      expect(result.correctWords, 2);
-      expect(result.accuracy, 100);
+      // Letter-perfect words: none. Letters: 4 of 6 are right.
+      expect(result.correctWords, 0);
+      expect(result.totalWords, 2);
+      expect(result.correctLetters, 4);
+      expect(result.totalLetters, 6);
+      expect(result.accuracy, closeTo(66.7, 0.1));
       expect(result.confusions['b-d'], 2);
     });
 
@@ -50,12 +58,17 @@ void main() {
       // "red" said as "rod": the e/o vowel mixup must be reported even
       // though e/o is not in the classic dyslexia pair list.
       final result = LetterAnalysis.compare('red', 'rod');
-      expect(result.correctWords, 1);
-      expect(result.accuracy, 100);
+      expect(result.correctWords, 0);
+      expect(result.correctLetters, 2);
+      expect(result.totalLetters, 3);
+      expect(result.accuracy, closeTo(66.7, 0.1));
       expect(result.confusions.keys, contains('e-o'));
 
       // A word with two mixups flags both letters.
       final two = LetterAnalysis.compare('head', 'higd');
+      expect(two.correctLetters, 2);
+      expect(two.totalLetters, 4);
+      expect(two.accuracy, 50);
       expect(two.confusions.keys, contains('e-i'));
       expect(two.confusions.keys, contains('a-g'));
     });
@@ -65,14 +78,16 @@ void main() {
         'the cat sat on a mat',
         'the cat mat', // missing half the words
       );
-      expect(result.correctWords, greaterThan(0));
-      expect(result.correctWords, lessThan(6));
-      expect(result.accuracy, lessThan(100));
+      expect(result.correctWords, 3);
+      expect(result.correctLetters, 9);
+      expect(result.totalLetters, 15);
+      expect(result.accuracy, closeTo(60.0, 0.1));
     });
 
     test('empty expected returns zero without crashing', () {
       final result = LetterAnalysis.compare('   ', '');
       expect(result.totalWords, 0);
+      expect(result.totalLetters, 0);
       expect(result.accuracy, 0);
     });
   });

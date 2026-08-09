@@ -81,7 +81,7 @@
 practicepara/words               -> shared practice words
 practicepara/speechpat           -> speech paragraphs
 users/{uid}                      -> { role, email, linkCode, childIds, parentIds }
-users/{uid}/sessions/{id}        -> { type, accuracy, correctWords, totalWords, confusions, timestamp }
+users/{uid}/sessions/{id}        -> { type, accuracy, correctWords, totalWords, correctLetters, totalLetters, confusions, timestamp }
 users/{uid}/profile/gamification -> { points, todayPoints, dailyGoal, streak, ..., badges }
 users/{uid}/customWords/{id}     -> words added by flashcard scanning
 ```

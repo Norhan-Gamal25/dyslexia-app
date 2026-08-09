@@ -266,7 +266,7 @@ class _TrainSpeechScreenState extends State<TrainSpeechScreen> {
         _status = 'Nice try - keep practicing!';
       }
     });
-    _award(comparison, accuracy);
+    _award(comparison);
   }
 
   /// Letter-level accuracy (positional). More meaningful than word-level
@@ -283,20 +283,14 @@ class _TrainSpeechScreenState extends State<TrainSpeechScreen> {
   }
 
   /// Saves the session for the parent dashboard and hands out points + badges.
-  Future<void> _award(WordComparisonResult comparison, double accuracy) async {
+  Future<void> _award(WordComparisonResult comparison) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
-    final forDashboard = WordComparisonResult(
-      correctWords: comparison.correctWords,
-      totalWords: comparison.totalWords,
-      accuracy: accuracy,
-      confusions: comparison.confusions,
-    );
     try {
       await SessionService.instance.saveSession(
         childUid: uid,
         type: 'train',
-        result: forDashboard,
+        result: comparison,
       );
     } catch (_) {
       // Session history is a bonus for the parent dashboard - don't block
@@ -306,7 +300,7 @@ class _TrainSpeechScreenState extends State<TrainSpeechScreen> {
       final reward = await GamificationService.instance.recordExercise(
         childUid: uid,
         type: 'train',
-        accuracy: accuracy,
+        accuracy: comparison.accuracy,
       );
       if (mounted && reward != null) celebrate(context, reward);
     } catch (_) {

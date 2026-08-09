@@ -6,14 +6,26 @@
 /// WritingPatternScreen / SpeechPatternScreen, and additionally looks
 /// inside near-miss words for a single confused letter.
 class WordComparisonResult {
+  /// Words that match the expected text letter for letter.
   final int correctWords;
   final int totalWords;
+
+  /// Letter-level counts: how many of the expected letters the child
+  /// reproduced, aligned so a missing letter does not shift the rest.
+  final int correctLetters;
+  final int totalLetters;
+
+  /// Letter-level accuracy (0-100). A word with one letter wrong is no longer
+  /// "100%" - the wrong letter is counted against the score.
   final double accuracy;
+
   final Map<String, int> confusions; // key: "a-b" (sorted pair), value: count
 
   WordComparisonResult({
     required this.correctWords,
     required this.totalWords,
+    required this.correctLetters,
+    required this.totalLetters,
     required this.accuracy,
     required this.confusions,
   });
@@ -74,6 +86,76 @@ class LetterAnalysis {
     return missing;
   }
 
+  /// Letter-level alignment of a single word pair: how many letters of
+  /// [expected] the child reproduced, in order. Uses the same
+  /// Needleman-Wunsch idea as the word alignment so one missing letter does
+  /// not shift every later letter onto the wrong partner.
+  static ({int matches, int length}) _letterMatches(
+    String expected,
+    String actual,
+  ) {
+    final e = expected.split('');
+    final a = actual.split('');
+    final n = e.length;
+    final m = a.length;
+    if (n == 0) return (matches: 0, length: 0);
+    if (m == 0) return (matches: 0, length: n);
+
+    const matchScore = 2;
+    const gapScore = -1;
+    const mismatchScore = -1;
+
+    final scores = List.generate(n + 1, (_) => List.filled(m + 1, 0));
+    final pointers = List.generate(
+      n + 1,
+      (_) => List<String>.filled(m + 1, ''),
+    );
+    for (var i = 0; i <= n; i++) {
+      scores[i][0] = i * gapScore;
+      pointers[i][0] = 'up';
+    }
+    for (var j = 0; j <= m; j++) {
+      scores[0][j] = j * gapScore;
+      pointers[0][j] = 'left';
+    }
+    for (var i = 1; i <= n; i++) {
+      for (var j = 1; j <= m; j++) {
+        final diagScore =
+            scores[i - 1][j - 1] +
+            (e[i - 1] == a[j - 1] ? matchScore : mismatchScore);
+        final upScore = scores[i - 1][j] + gapScore;
+        final leftScore = scores[i][j - 1] + gapScore;
+        if (diagScore >= upScore && diagScore >= leftScore) {
+          scores[i][j] = diagScore;
+          pointers[i][j] = 'diag';
+        } else if (upScore >= leftScore) {
+          scores[i][j] = upScore;
+          pointers[i][j] = 'up';
+        } else {
+          scores[i][j] = leftScore;
+          pointers[i][j] = 'left';
+        }
+      }
+    }
+
+    var i = n, j = m;
+    var matches = 0;
+    while (i > 0 || j > 0) {
+      if (i > 0 && j > 0 && pointers[i][j] == 'diag') {
+        if (e[i - 1] == a[j - 1]) matches++;
+        i--;
+        j--;
+      } else if (i > 0 && (j == 0 || pointers[i][j] == 'up')) {
+        i--;
+      } else if (j > 0) {
+        j--;
+      } else {
+        i--;
+      }
+    }
+    return (matches: matches, length: n);
+  }
+
   /// Compares two strings word-by-word using sequence alignment (the same
   /// grading idea the screens already used) and additionally looks for
   /// letter-level confusions inside words that are "almost right" (same
@@ -102,6 +184,8 @@ class LetterAnalysis {
       return WordComparisonResult(
         correctWords: 0,
         totalWords: 0,
+        correctLetters: 0,
+        totalLetters: 0,
         accuracy: 0,
         confusions: const {},
       );
@@ -181,25 +265,37 @@ class LetterAnalysis {
 
     // Backtrack.
     var i = n, j = m;
-    int correct = 0;
+    int correctWords = 0;
+    int correctLetters = 0;
+    int totalLetters = 0;
     final confusions = <String, int>{};
     while (i > 0 || j > 0) {
       if (i > 0 && pointers[i][j] == 'up') {
+        // Expected word skipped by the child: every letter counts against
+        // the accuracy score.
+        totalLetters += expectedWords[i - 1].length;
         i--;
       } else if (j > 0 && pointers[i][j] == 'left') {
         j--;
       } else {
         final state = pointers[i][j];
+        final letters = _letterMatches(expectedWords[i - 1], actualWords[j - 1]);
+        totalLetters += letters.length;
         if (state.startsWith('diag:exact')) {
-          correct++;
+          correctWords++;
+          correctLetters += letters.length;
         } else if (state.startsWith('diag:near:')) {
-          // Count the near-miss as correct for the child, but still flag
-          // the recurring letters so it feeds the parent dashboard.
-          correct++;
+          // Still credit the letters the child got right, but the word is
+          // not letter-perfect, and the mixups are flagged for the analysis.
+          correctLetters += letters.matches;
           final keys = state.substring('diag:near:'.length).split('|');
           for (final key in keys) {
             confusions[key] = (confusions[key] ?? 0) + 1;
           }
+        } else {
+          // A wrong word may still contain some correct letters - credit
+          // only the letters that actually match.
+          correctLetters += letters.matches;
         }
         i--;
         j--;
@@ -207,10 +303,13 @@ class LetterAnalysis {
     }
 
     final total = expectedWords.length;
-    final accuracy = total == 0 ? 0.0 : (correct / total) * 100;
+    final accuracy =
+        totalLetters == 0 ? 0.0 : (correctLetters / totalLetters) * 100;
     return WordComparisonResult(
-      correctWords: correct,
+      correctWords: correctWords,
       totalWords: total,
+      correctLetters: correctLetters,
+      totalLetters: totalLetters,
       accuracy: accuracy,
       confusions: confusions,
     );

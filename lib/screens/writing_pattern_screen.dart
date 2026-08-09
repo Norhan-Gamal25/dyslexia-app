@@ -158,7 +158,8 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
     final buffer = StringBuffer()
       ..writeln('Accuracy: ${comparison.accuracy.toStringAsFixed(1)}%')
       ..writeln(
-        'Correct words: ${comparison.correctWords}/${comparison.totalWords}',
+        'Correct letters: '
+        '${comparison.correctLetters}/${comparison.totalLetters}',
       );
     if (comparison.confusions.isNotEmpty) {
       buffer.writeln();

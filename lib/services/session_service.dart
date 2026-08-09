@@ -8,6 +8,8 @@ class SessionResult {
   final double accuracy;
   final int correctWords;
   final int totalWords;
+  final int correctLetters;
+  final int totalLetters;
   final Map<String, int> confusions;
   final DateTime? timestamp;
 
@@ -16,6 +18,8 @@ class SessionResult {
     required this.accuracy,
     required this.correctWords,
     required this.totalWords,
+    required this.correctLetters,
+    required this.totalLetters,
     required this.confusions,
     required this.timestamp,
   });
@@ -34,6 +38,8 @@ class SessionResult {
       accuracy: (map['accuracy'] as num?)?.toDouble() ?? 0.0,
       correctWords: (map['correctWords'] as num?)?.toInt() ?? 0,
       totalWords: (map['totalWords'] as num?)?.toInt() ?? 0,
+      correctLetters: (map['correctLetters'] as num?)?.toInt() ?? 0,
+      totalLetters: (map['totalLetters'] as num?)?.toInt() ?? 0,
       confusions: confusions,
       timestamp: ts is Timestamp ? ts.toDate() : null,
     );
@@ -59,6 +65,8 @@ class SessionService {
       'accuracy': result.accuracy,
       'correctWords': result.correctWords,
       'totalWords': result.totalWords,
+      'correctLetters': result.correctLetters,
+      'totalLetters': result.totalLetters,
       'confusions': result.confusions,
       'timestamp': FieldValue.serverTimestamp(),
     });
