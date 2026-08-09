@@ -70,7 +70,13 @@ void main() {
     test('perfect accuracy unlocks Accuracy Star', () {
       const state = GamificationState(bestAccuracy: 100, totalSessions: 1);
       expect(_earned('accuracy_star', state), isTrue);
-      expect(_earned('letter_wizard', state), isTrue);
+    });
+
+    test('a day with several exercises unlocks Abracadabra', () {
+      const low = GamificationState(todayPoints: 16, totalSessions: 2);
+      const high = GamificationState(todayPoints: 25, totalSessions: 3);
+      expect(_earned('abracadabra', low), isFalse);
+      expect(_earned('abracadabra', high), isTrue);
     });
 
     test('streaks unlock their badges progressively', () {

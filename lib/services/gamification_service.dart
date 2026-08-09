@@ -107,11 +107,11 @@ class BadgeCatalog {
       isEarned: (s) => s.bestAccuracy >= 100,
     ),
     BadgeDefinition(
-      id: 'letter_wizard',
-      title: 'Letter Wizard',
-      description: 'Score 80% or better on any exercise.',
-      emoji: '🧙',
-      isEarned: (s) => s.bestAccuracy >= 80,
+      id: 'abracadabra',
+      title: 'Abracadabra',
+      description: 'Complete 3 exercises in a single day.',
+      emoji: '🪄',
+      isEarned: (s) => s.todayPoints >= 24,
     ),
     BadgeDefinition(
       id: 'writer',
