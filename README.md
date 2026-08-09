@@ -1,6 +1,6 @@
 # Verbix 📚
 
-[![Copyright](https://img.shields.io/badge/License-All_Rights_Reserved-red.svg)](LICENSE.md)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android-blue.svg)](https://www.android.com/)
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B.svg)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3-0175C2.svg)](https://dart.dev)
@@ -209,5 +209,5 @@ This is a portfolio project and is not open for contributions. However, feedback
 
 ## License
 
-Copyright © 2024 Swati Sharma. All rights reserved.
-See [LICENSE](LICENSE) for details.
+Copyright © 2026 Norhan-Gamal25
+Released under the [MIT License](LICENSE).
