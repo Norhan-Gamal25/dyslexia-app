@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import '../services/letter_analysis.dart';
+import '../services/session_service.dart';
+
 class SpeechPatternScreen extends StatefulWidget {
   const SpeechPatternScreen({super.key});
 
@@ -47,7 +51,13 @@ class _SpeechPatternScreenState extends State<SpeechPatternScreen> {
     _speech.listen(
       onResult: (result) {
         if (result.finalResult) {
-          setState(() => _result = _compare(result.recognizedWords));
+          final comparison =
+              LetterAnalysis.compare(_paragraph, result.recognizedWords);
+          _saveSession(comparison);
+          if (mounted) {
+            setState(
+                () => _result = _formatResult(comparison, result.recognizedWords));
+          }
         }
       },
       listenOptions: SpeechListenOptions(
@@ -70,17 +80,36 @@ class _SpeechPatternScreenState extends State<SpeechPatternScreen> {
     });
   }
 
-  String _compare(String spoken) {
-    final originalWords = _paragraph.toLowerCase().split(RegExp(r'\s+'));
-    final spokenWords = spoken.toLowerCase().split(RegExp(r'\s+'));
-    int correct = 0;
-    for (int i = 0; i < originalWords.length && i < spokenWords.length; i++) {
-      if (originalWords[i] == spokenWords[i]) correct++;
+  Future<void> _saveSession(WordComparisonResult comparison) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await SessionService.instance.saveSession(
+        childUid: uid,
+        type: 'speech',
+        result: comparison,
+      );
+    } catch (_) {
+      // Session history is a bonus for the parent dashboard - don't block
+      // the child if saving it fails (e.g. offline).
     }
-    final accuracy = originalWords.isEmpty ? 0.0 : (correct / originalWords.length) * 100;
-    return 'Accuracy: ${accuracy.toStringAsFixed(1)}%\n'
-        'Correct words: $correct/${originalWords.length}\n\n'
-        'Spoken:\n$spoken';
+  }
+
+  String _formatResult(WordComparisonResult comparison, String spoken) {
+    final buffer = StringBuffer()
+      ..writeln('Accuracy: ${comparison.accuracy.toStringAsFixed(1)}%')
+      ..writeln(
+          'Correct words: ${comparison.correctWords}/${comparison.totalWords}');
+    if (comparison.confusions.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln('Letters to watch: '
+          '${comparison.confusions.keys.map(LetterAnalysis.labelFor).join(', ')}');
+    }
+    buffer
+      ..writeln()
+      ..writeln('Spoken:')
+      ..write(spoken);
+    return buffer.toString();
   }
 
   @override
