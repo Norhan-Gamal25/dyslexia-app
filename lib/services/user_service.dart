@@ -36,29 +36,45 @@ class UserService {
     final uid = currentUid;
     if (uid == null) return;
     final ref = _users.doc(uid);
-    final snap = await ref.get();
-    if (snap.exists) return;
+    final snap = await ref.get().timeout(const Duration(seconds: 5));
     final effectiveRole = role ?? UserRole.child;
-    final data = <String, dynamic>{
-      'email': FirebaseAuth.instance.currentUser?.email,
-      'role': effectiveRole.value,
-      'createdAt': FieldValue.serverTimestamp(),
-      'childIds': <String>[],
-      'parentIds': <String>[],
-    };
-    if (effectiveRole == UserRole.child) {
-      data['linkCode'] = _generateLinkCode();
+    if (!snap.exists) {
+      final data = <String, dynamic>{
+        'email': FirebaseAuth.instance.currentUser?.email,
+        'role': effectiveRole.value,
+        'createdAt': FieldValue.serverTimestamp(),
+        'childIds': <String>[],
+        'parentIds': <String>[],
+      };
+      if (effectiveRole == UserRole.child) {
+        data['linkCode'] = _generateLinkCode();
+      }
+      await ref.set(data);
+      return;
     }
-    await ref.set(data);
+    // Backfill for accounts created before link codes existed, or where the
+    // first write failed due to Firestore rules: give the child a code now.
+    final existing = snap.data() ?? {};
+    final isChild =
+        existing['role'] == 'child' || existing['role'] == null;
+    if (isChild && existing['linkCode'] == null) {
+      await ref.update({'linkCode': _generateLinkCode()});
+    }
   }
 
   Future<UserRole> getRole(String uid) async {
-    final snap = await _users.doc(uid).get();
+    final snap = await _users
+        .doc(uid)
+        .get()
+        .timeout(const Duration(seconds: 5));
     return UserRoleX.fromValue(snap.data()?['role'] as String?);
   }
 
   Future<Map<String, dynamic>?> getUserData(String uid) async {
-    final snap = await _users.doc(uid).get();
+    final snap = await _users
+        .doc(uid)
+        .get()
+        .timeout(const Duration(seconds: 5));
     return snap.data();
   }
 
@@ -76,10 +92,20 @@ class UserService {
     if (parentUid == null) throw Exception('Not signed in.');
     final normalized = code.trim().toUpperCase();
     if (normalized.isEmpty) throw Exception('Enter a code first.');
-    final query = await _users
-        .where('linkCode', isEqualTo: normalized)
-        .limit(1)
-        .get();
+    QuerySnapshot<Map<String, dynamic>> query;
+    try {
+      query = await _users
+          .where('linkCode', isEqualTo: normalized)
+          .limit(1)
+          .get()
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      // Denied by Firestore rules, or a network problem. The parent will
+      // also see this if the rules file hasn't been published yet.
+      throw Exception(
+          'Could not search for that code. Make sure you have an internet '
+          'connection and the Firestore rules are published.');
+    }
     if (query.docs.isEmpty) {
       throw Exception('No child account found for that code.');
     }
@@ -87,17 +113,26 @@ class UserService {
     if (childUid == parentUid) {
       throw Exception('That is your own code.');
     }
-    await _users.doc(parentUid).update({
-      'childIds': FieldValue.arrayUnion([childUid]),
-    });
-    await _users.doc(childUid).update({
-      'parentIds': FieldValue.arrayUnion([parentUid]),
-    });
+    try {
+      await _users.doc(parentUid).update({
+        'childIds': FieldValue.arrayUnion([childUid]),
+      });
+      await _users.doc(childUid).update({
+        'parentIds': FieldValue.arrayUnion([parentUid]),
+      });
+    } catch (_) {
+      throw Exception(
+          'Linked the code, but could not update the accounts. '
+          'Make sure the Firestore rules are published.');
+    }
     return childUid;
   }
 
   Future<List<String>> getChildIds(String parentUid) async {
-    final snap = await _users.doc(parentUid).get();
+    final snap = await _users
+        .doc(parentUid)
+        .get()
+        .timeout(const Duration(seconds: 5));
     final ids = snap.data()?['childIds'];
     if (ids is List) return ids.map((e) => e.toString()).toList();
     return [];

@@ -41,6 +41,8 @@ dependencies:
   google_mlkit_digital_ink_recognition: ^0.14.2
   camera: ^0.12.0+2
   speech_to_text: ^7.4.0
+  flutter_tts: ^4.2.5
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
@@ -63,6 +65,18 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # OpenDyslexic font (SIL OFL 1.1) used for the AI Storytelling feature -
+  # helps readers with dyslexia by weighting letter bottoms so letters are
+  # easier to tell apart.
+  fonts:
+    - family: OpenDyslexic
+      fonts:
+        - asset: assets/fonts/OpenDyslexic-Regular.ttf
+        - asset: assets/fonts/OpenDyslexic-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/OpenDyslexic-Italic.ttf
+          style: italic
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -1,6 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide Ink;
 import 'package:google_mlkit_digital_ink_recognition/google_mlkit_digital_ink_recognition.dart';
+import '../services/gamification_service.dart';
+import '../services/letter_analysis.dart';
+import '../services/practice_words_service.dart';
+import '../services/session_service.dart';
+import '../widgets/kid_feedback.dart';
 
 class PracticeWritingScreen extends StatefulWidget {
   const PracticeWritingScreen({super.key});
@@ -16,6 +22,11 @@ class _PracticeWritingScreenState extends State<PracticeWritingScreen> {
   String _word = 'Loading...';
   String _result = '';
 
+  /// Size of the drawing pad, given to the recognizer as the coordinate
+  /// space the strokes were drawn in. This lets ML Kit normalize the ink
+  /// correctly, which noticeably improves accuracy for children's writing.
+  Size _padSize = const Size(400, 300);
+
   @override
   void initState() {
     super.initState();
@@ -25,13 +36,30 @@ class _PracticeWritingScreenState extends State<PracticeWritingScreen> {
 
   Future<void> _loadWord() async {
     try {
+      // Mix in the shared word bank plus anything the child has added by
+      // scanning their own flashcards or books, so practice reflects both.
+      final words = <String>[];
       final doc = await FirebaseFirestore.instance
           .collection('practicepara')
           .doc('words')
-          .get();
+          .get()
+          .timeout(const Duration(seconds: 5));
       final data = doc.data();
       if (data != null && data.isNotEmpty) {
-        final words = data.values.map((v) => v.toString()).toList();
+        words.addAll(data.values.map((v) => v.toString()));
+      }
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        try {
+          final customWords = await PracticeWordsService.instance
+              .getCustomWords(uid);
+          words.addAll(customWords);
+        } catch (_) {
+          // Custom words are a bonus - don't block practice if they fail
+          // to load (e.g. offline).
+        }
+      }
+      if (words.isNotEmpty) {
         final selected =
             words[DateTime.now().millisecondsSinceEpoch % words.length];
         if (mounted) {
@@ -41,6 +69,8 @@ class _PracticeWritingScreenState extends State<PracticeWritingScreen> {
             _strokes.clear();
           });
         }
+      } else if (mounted) {
+        setState(() => _word = 'No words loaded');
       }
     } catch (e) {
       if (mounted) setState(() => _word = 'No words loaded');
@@ -52,11 +82,13 @@ class _PracticeWritingScreenState extends State<PracticeWritingScreen> {
     for (final stroke in _strokes) {
       final s = Stroke();
       for (int i = 0; i < stroke.length; i++) {
-        s.points.add(StrokePoint(
-          x: stroke[i].dx,
-          y: stroke[i].dy,
-          t: DateTime.now().millisecondsSinceEpoch.toInt() + i,
-        ));
+        s.points.add(
+          StrokePoint(
+            x: stroke[i].dx,
+            y: stroke[i].dy,
+            t: DateTime.now().millisecondsSinceEpoch.toInt() + i,
+          ),
+        );
       }
       ink.strokes.add(s);
     }
@@ -70,7 +102,9 @@ class _PracticeWritingScreenState extends State<PracticeWritingScreen> {
     }
     final recognizer = _recognizer;
     if (recognizer == null) {
-      setState(() => _result = 'Handwriting model is loading. Please try again.');
+      setState(
+        () => _result = 'Handwriting model is loading. Please try again.',
+      );
       return;
     }
     setState(() => _result = 'Recognizing...');
@@ -81,20 +115,110 @@ class _PracticeWritingScreenState extends State<PracticeWritingScreen> {
         final ok = await modelManager.downloadModel('en-US');
         if (!ok) {
           setState(
-              () => _result = 'Could not download handwriting model. Check internet.');
+            () => _result =
+                'Could not download handwriting model. Check internet.',
+          );
           return;
         }
       }
-      final candidates = await recognizer.recognize(_buildInk());
+      final candidates = await recognizer.recognize(
+        _buildInk(),
+        context: DigitalInkRecognitionContext(
+          writingArea: WritingArea(
+            width: _padSize.width,
+            height: _padSize.height,
+          ),
+        ),
+      );
       if (candidates.isNotEmpty) {
-        final recognized = candidates.first.text;
-        setState(() => _result = 'Written: $recognized\nTarget: $_word');
+        final recognized = candidates.first.text.trim();
+        _award(recognized);
+        setState(() => _result = _buildResult(recognized));
       } else {
-        setState(() => _result = 'Could not recognize the writing. Please try again.');
+        setState(
+          () => _result = 'Could not recognize the writing. Please try again.',
+        );
       }
     } catch (e) {
       setState(() => _result = 'Recognition failed: $e');
     }
+  }
+
+  /// Builds the feedback text for a recognized word: spoken/correct letter
+  /// counts, any confused letter pairs, and a matching exercise.
+  String _buildResult(String recognized) {
+    final target = _word.toLowerCase();
+    final written = recognized.toLowerCase();
+    final buffer = StringBuffer()
+      ..writeln('Written: $recognized')
+      ..writeln('Target: $_word');
+
+    if (written.isEmpty) {
+      buffer.writeln(
+        '\nCould not read your writing. Try again in a bright '
+        'room and keep inside the box.',
+      );
+      return buffer.toString();
+    }
+
+    // Letter-level count (positional) - more informative than word-level
+    // accuracy when the target is a single word.
+    var correct = 0;
+    for (var i = 0; i < written.length && i < target.length; i++) {
+      if (written[i] == target[i]) correct++;
+    }
+    final compare = LetterAnalysis.compare(_word, written);
+    final percent = target.isEmpty
+        ? 0.0
+        : (correct / target.length * 100).toStringAsFixed(0);
+    buffer
+      ..writeln()
+      ..writeln('$correct of ${target.length} letters correct ($percent%)');
+    if (compare.confusions.isNotEmpty) {
+      buffer
+        ..writeln(
+          'Letters to watch: '
+          '${compare.confusions.keys.map(LetterAnalysis.labelFor).join(', ')}',
+        )
+        ..writeln(LetterAnalysis.exerciseFor(compare.confusions.keys.first));
+    } else if (compare.accuracy >= 100) {
+      buffer.writeln('Perfect! Great writing.');
+    }
+    return buffer.toString();
+  }
+
+  /// Positional letter accuracy (0-100) for the recognized word against the
+  /// target, used both for the on-screen feedback and for scoring points.
+  double _letterAccuracy(String target, String written) {
+    if (target.isEmpty) return 0;
+    var correct = 0;
+    for (var i = 0; i < written.length && i < target.length; i++) {
+      if (written[i] == target[i]) correct++;
+    }
+    return correct / target.length * 100;
+  }
+
+  /// Saves the practice session for the parent dashboard and rewards the
+  /// child with points/badges. Failures never interrupt the practice flow.
+  Future<void> _award(String recognized) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final accuracy = _letterAccuracy(_word, recognized);
+    try {
+      await SessionService.instance.saveSession(
+        childUid: uid,
+        type: 'practice',
+        result: LetterAnalysis.compare(_word, recognized),
+      );
+    } catch (_) {}
+    try {
+      final reward = await GamificationService.instance.recordExercise(
+        childUid: uid,
+        type: 'practice',
+        accuracy: accuracy,
+      );
+      if (mounted && reward != null) celebrate(context, reward);
+    } catch (_) {}
   }
 
   @override
@@ -112,67 +236,81 @@ class _PracticeWritingScreenState extends State<PracticeWritingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Write this word:',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Write this word:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 4),
-            Text(_word,
-                style: const TextStyle(
-                    fontSize: 32, fontWeight: FontWeight.bold)),
+            Text(
+              _word,
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 12),
             Expanded(
-              child: Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: (event) {
-                  setState(() {
-                    _currentStroke = [event.localPosition];
-                  });
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  _padSize = constraints.biggest;
+                  return Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: (event) {
+                      setState(() {
+                        _currentStroke = [event.localPosition];
+                      });
+                    },
+                    onPointerMove: (event) {
+                      final current = _currentStroke;
+                      if (current != null) {
+                        setState(() {
+                          current.add(event.localPosition);
+                        });
+                      }
+                    },
+                    onPointerUp: (event) {
+                      setState(() {
+                        if (_currentStroke != null &&
+                            _currentStroke!.isNotEmpty) {
+                          _strokes.add(List.of(_currentStroke!));
+                          _currentStroke = null;
+                        }
+                      });
+                    },
+                    onPointerCancel: (event) {
+                      setState(() {
+                        if (_currentStroke != null &&
+                            _currentStroke!.isNotEmpty) {
+                          _strokes.add(List.of(_currentStroke!));
+                          _currentStroke = null;
+                        }
+                      });
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: CustomPaint(
+                        size: Size.infinite,
+                        painter: _DrawingPainter(_strokes, _currentStroke),
+                      ),
+                    ),
+                  );
                 },
-                onPointerMove: (event) {
-                  final current = _currentStroke;
-                  if (current != null) {
-                    setState(() {
-                      current.add(event.localPosition);
-                    });
-                  }
-                },
-                onPointerUp: (event) {
-                  setState(() {
-                    if (_currentStroke != null && _currentStroke!.isNotEmpty) {
-                      _strokes.add(List.of(_currentStroke!));
-                      _currentStroke = null;
-                    }
-                  });
-                },
-                onPointerCancel: (event) {
-                  setState(() {
-                    if (_currentStroke != null && _currentStroke!.isNotEmpty) {
-                      _strokes.add(List.of(_currentStroke!));
-                      _currentStroke = null;
-                    }
-                  });
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: CustomPaint(
-                    size: Size.infinite,
-                    painter: _DrawingPainter(_strokes, _currentStroke),
-                  ),
-                ),
               ),
             ),
             const SizedBox(height: 12),
             if (_result.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(_result,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w500)),
+                child: Text(
+                  _result,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
             Row(
               children: [

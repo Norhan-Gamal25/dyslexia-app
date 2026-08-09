@@ -72,4 +72,15 @@ class SessionService {
         .map((snap) =>
             snap.docs.map((d) => SessionResult.fromMap(d.data())).toList());
   }
+
+  /// One-shot fetch of a child's sessions (for one-time computations such as
+  /// reading level), newest first.
+  Future<List<SessionResult>> fetchSessions(String childUid) async {
+    final snap = await _sessionsFor(childUid)
+        .orderBy('timestamp', descending: true)
+        .limit(20)
+        .get()
+        .timeout(const Duration(seconds: 5));
+    return snap.docs.map((d) => SessionResult.fromMap(d.data())).toList();
+  }
 }

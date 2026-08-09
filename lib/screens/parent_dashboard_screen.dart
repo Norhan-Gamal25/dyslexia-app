@@ -149,7 +149,7 @@ class _DashboardBody extends StatelessWidget {
           children: [
             if (childIds.length > 1) ...[
               DropdownButtonFormField<String>(
-                value: selectedChild,
+                initialValue: selectedChild,
                 decoration: const InputDecoration(
                   labelText: 'Child',
                   border: OutlineInputBorder(),

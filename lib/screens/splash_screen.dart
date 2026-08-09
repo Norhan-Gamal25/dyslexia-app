@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'login_screen.dart';
 import 'home_screen.dart';
 
@@ -17,8 +18,14 @@ class _SplashScreenState extends State<SplashScreen> {
     _boot();
   }
 
-  Future<void> _boot() async {
-    await Future.delayed(const Duration(seconds: 2));
+Future<void> _boot() async {
+    // Show the splash immediately, Firebase starts behind it. A short
+    // timeout guarantees the app never hangs if the network is slow.
+    try {
+      await Firebase.initializeApp().timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Firebase may already be initialized on a reload, or offline.
+    }
     if (!mounted) return;
     final user = FirebaseAuth.instance.currentUser;
     Navigator.pushReplacement(
