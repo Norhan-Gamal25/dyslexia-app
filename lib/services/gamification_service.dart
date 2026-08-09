@@ -110,7 +110,7 @@ class BadgeCatalog {
       id: 'letter_master',
       title: 'Letter Master',
       description: 'Score 80% or better on any exercise.',
-      emoji: '🧙',
+      emoji: '🏅',
       isEarned: (s) => s.bestAccuracy >= 80,
     ),
     BadgeDefinition(
