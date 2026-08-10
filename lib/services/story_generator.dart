@@ -233,12 +233,12 @@ class StoryGenerator {
           'We are learning the letters {letters} today!',
         ],
       2 => [
-          '"The letters we practice today are {letters}," said the hero.',
-          '"{letters} are the letters of the day," announced the hero.',
+          '"The letters we practice today are {letters}," said {hero}.',
+          '"{letters} are the letters of the day," announced {hero}.',
         ],
       _ => [
-          '"Every letter wakes up its own sound," the hero explained. "Today we listen for {letters}."',
-          '"Letters are like little songs," said the hero. "Today we sing {letters}."',
+          '"Every letter wakes up its own sound," {hero} explained. "Today we listen for {letters}."',
+          '"Letters are like little songs," said {hero}. "Today we sing {letters}."',
         ],
     };
 
@@ -371,12 +371,12 @@ class StoryGenerator {
       if (pair.length == 1) {
         push(
           '"${cap(words100.first)} starts with the letter ${pair.first}," '
-          'said the hero.',
+          'said {hero}.',
         );
       } else {
         push(
           '"${cap(words100[0])} starts with ${pair[0]}, and '
-          '${words100[1]} starts with ${pair[1]}," said the hero.',
+          '${words100[1]} starts with ${pair[1]}," said {hero}.',
         );
       }
     }
