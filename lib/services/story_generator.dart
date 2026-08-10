@@ -371,12 +371,12 @@ class StoryGenerator {
       if (pair.length == 1) {
         push(
           '"${cap(words100.first)} starts with the letter ${pair.first}," '
-          'said {hero}.',
+          'said the $hero.',
         );
       } else {
         push(
           '"${cap(words100[0])} starts with ${pair[0]}, and '
-          '${words100[1]} starts with ${pair[1]}," said {hero}.',
+          '${words100[1]} starts with ${pair[1]}," said the $hero.',
         );
       }
     }
@@ -408,7 +408,7 @@ class StoryGenerator {
       push(fill(pick(twists)));
     }
 
-    push('On the way home, {hero} felt happy, strong, and so very proud.');
+    push(fill('On the way home, {hero} felt happy, strong, and so very proud.'));
 
     // Closing.
     push(fill(pick(closers)));
