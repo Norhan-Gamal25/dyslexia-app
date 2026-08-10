@@ -20,6 +20,11 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
   String _result = '';
   bool _processing = false;
 
+  /// The scored comparison of the confirmed scan, rendered as a rich
+  /// analysis card (accuracy, confusion chips, missing letters, exercise).
+  WordComparisonResult? _comparison;
+  String _scannedText = '';
+
   /// Raw OCR text waiting for the user to confirm/correct it before scoring.
   /// ML Kit's Latin model reads printed text; on a child's handwriting it
   /// often misreads letters, so we let the parent fix the scan before the
@@ -67,7 +72,11 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
       ).showSnackBar(const SnackBar(content: Text('No camera available')));
       return;
     }
-    setState(() => _scanText = '');
+    setState(() {
+      _scanText = '';
+      _comparison = null;
+      _scannedText = '';
+    });
     final image = await Navigator.push<XFile>(
       context,
       MaterialPageRoute(builder: (_) => CameraScreen(camera: cameras.first)),
@@ -124,7 +133,8 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
     final comparison = LetterAnalysis.compare(_paragraph, text);
     _saveSession(comparison);
     setState(() {
-      _result = _formatResult(comparison, text);
+      _comparison = comparison;
+      _scannedText = text;
       _scanText = '';
     });
   }
@@ -152,27 +162,6 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
     } catch (_) {
       // Points are a nice extra - never interrupt practice on failures.
     }
-  }
-
-  String _formatResult(WordComparisonResult comparison, String scanned) {
-    final buffer = StringBuffer()
-      ..writeln('Accuracy: ${comparison.accuracy.toStringAsFixed(1)}%')
-      ..writeln(
-        'Correct letters: '
-        '${comparison.correctLetters}/${comparison.totalLetters}',
-      );
-    if (comparison.confusions.isNotEmpty) {
-      buffer.writeln();
-      buffer.writeln(
-        'Letters to watch: '
-        '${comparison.confusions.keys.map(LetterAnalysis.labelFor).join(', ')}',
-      );
-    }
-    buffer
-      ..writeln()
-      ..writeln('Scanned text:')
-      ..write(scanned);
-    return buffer.toString();
   }
 
   @override
@@ -256,6 +245,16 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
                     ),
                   ),
                 )
+              else if (_comparison != null)
+                _AnalysisCard(
+                  comparison: _comparison!,
+                  scanned: _scannedText,
+                  target: _paragraph,
+                  onRetry: () => setState(() {
+                    _comparison = null;
+                    _scannedText = '';
+                  }),
+                )
               else if (_result.isNotEmpty)
                 Card(
                   child: Padding(
@@ -265,6 +264,160 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Renders the verdict for a handwriting session: accuracy, how many letters
+/// were reproduced, which letters the child mixed up (with counts), letters
+/// that were missing, a suggested exercise and the corrected scan text.
+class _AnalysisCard extends StatelessWidget {
+  final WordComparisonResult comparison;
+  final String scanned;
+  final String target;
+  final VoidCallback onRetry;
+
+  const _AnalysisCard({
+    required this.comparison,
+    required this.scanned,
+    required this.target,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final confusions = comparison.confusions.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final missing = LetterAnalysis.missingLetters(target, scanned);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Handwriting analysis',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Accuracy: ${comparison.accuracy.toStringAsFixed(1)}%',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${comparison.correctLetters} of ${comparison.totalLetters} '
+              'letter${comparison.totalLetters == 1 ? '' : 's'} correct',
+              style: const TextStyle(fontSize: 14),
+            ),
+            if (missing.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Missing letters:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (final letter in missing)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFA5D6A7)),
+                      ),
+                      child: Text(
+                        letter.toUpperCase(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Color(0xFF1B5E20),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+            if (confusions.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'You mix up these letters:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              for (final entry in confusions)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFBE9E7),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFFF8A80)),
+                        ),
+                        child: Text(
+                          LetterAnalysis.labelFor(entry.key),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Color(0xFFC62828),
+                          ),
+                        ),
+                      ),
+                      if (entry.value > 1) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          '${entry.value}×',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                LetterAnalysis.exerciseFor(confusions.first.key),
+                style: const TextStyle(fontSize: 13, color: Colors.black54),
+              ),
+            ],
+            if (scanned.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'You wrote:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(scanned, style: const TextStyle(fontSize: 16)),
+            ],
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onRetry,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Practice again'),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
