@@ -57,15 +57,10 @@ void main() {
   });
 
   test('hero is always an animate character, never a practice object', () {
-    const characters = {
-      'cat', 'dog', 'fox', 'bear', 'mouse', 'rabbit', 'goat', 'owl',
-      'pig', 'frog', 'pony', 'duck', 'dragon', 'panda', 'whale', 'lion',
-    };
-    // Words that would previously have become nonsense heroes.
     const inertWords = [
       'garden', 'tree', 'book', 'water', 'phone', 'wall', 'sky', 'door',
     ];
-    for (var seed = 0; seed < 12; seed++) {
+    for (var seed = 0; seed < 40; seed++) {
       final story = generator.generate(
         words: inertWords,
         troubleLetters: const {'b', 'd'},
@@ -73,11 +68,29 @@ void main() {
         seed: seed,
       );
       final intro = story.sentences.first.toLowerCase();
-      expect(characters.where(intro.contains), isNotEmpty,
+      expect(StoryGenerator.animateHeroes, contains(story.hero),
           reason: 'seed $seed: "$intro"');
-      expect(intro, isNot(contains('garden')),
-          reason: 'seed $seed: hero must not be an object');
+      expect(inertWords, isNot(contains(story.hero)),
+          reason: 'seed $seed: hero "$story.hero" must not be an object');
+      expect(intro, contains(story.hero),
+          reason: 'seed $seed: "$intro" should mention the hero "$story.hero"');
     }
+  });
+
+  test('stories vary widely across seeds', () {
+    final seen = <String>{};
+    for (var seed = 0; seed < 60; seed++) {
+      final story = generator.generate(
+        words: words,
+        troubleLetters: letters,
+        level: 2,
+        seed: seed,
+      );
+      seen.add(story.title);
+      seen.add(story.sentences.first);
+    }
+    expect(seen.length, greaterThanOrEqualTo(30),
+        reason: 'expected a wide variety, got only $seen');
   });
 
   test('levelFromAccuracy maps accuracy ranges', () {

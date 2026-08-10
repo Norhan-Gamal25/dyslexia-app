@@ -8,7 +8,7 @@
 [![ML Kit](https://img.shields.io/badge/ML%20Kit-Text%20%2B%20Digital%20Ink-4285F4.svg)](https://developers.google.com/ml-kit)
 [![Speech](https://img.shields.io/badge/Speech%20Recognition-Offline/Cloud-0288D1.svg)](https://www.android.com/better-phone/)
 
-> **Verbix** is an Android application designed to support children with learning disabilities, particularly dyslexia, which affects an estimated [5-10% of children worldwide](https://pmc.ncbi.nlm.nih.gov/articles/PMC6099274/#:~:text=Given%20that%20an%20estimated%205,and%20informed%20understandings%20of%20dyslexia.). Verbix uses on-device **OCR**, **digital-ink recognition** and **speech recognition** to analyze a child's handwriting and pronunciation, detect recurring letter confusions (for example **b/d**, **e/o**), and generate personalized exercises, stories and rewards that keep learning fun.
+> **Verbix** is an Android application designed to support children with learning disabilities, particularly dyslexia, which affects an estimated [5-10% of children worldwide](https://pmc.ncbi.nlm.nih.gov/articles/PMC6099274/#:~:text=Given%20that%20an%20estimated%205,and%20informed%20understandings%20of%20dyslexia.). Verbix uses **typing practice**, **digital-ink recognition** and **speech recognition** to work on a child's reading and pronunciation, detect recurring letter confusions (for example **b/d**, **e/o**), and generate personalized exercises, stories and rewards that keep learning fun.
 
 ![Verbix Mockup](screenshots/verbix-mockup.jpg)
 
@@ -16,8 +16,8 @@
 
 ## Key Features
 
-### 📝 Handwriting Analysis
-- Capture handwritten text with the camera and read it with **Google ML Kit Text Recognition**.
+### 📝 Writing Pattern & Handwriting
+- Read a paragraph, then type it — every letter is compared against the target (**no unreliable camera scanning**).
 - Draw words on a touch pad and read them with **ML Kit Digital Ink Recognition**.
 - Instant, color-coded analysis: correct letters, mixed-up letter pairs and **missing letters**.
 - Confusion pairs (e.g. `b / d`, `p / q`, `e / o`) are flagged with a targeted practice tip.
@@ -33,9 +33,9 @@
 - Personalized word sets: shared practice words plus words the child scans from real flashcards or books.
 
 ### 📖 AI Storytelling
-- Stories generated **on-device** (no network, no API key), always starring an animate hero.
+- Stories generated **on-device** (no network, no API key), drawn from huge hero, location, opener, plot and twist pools so every story reads differently.
 - Reading level adapts to the child's past accuracy (Levels 1–3).
-- Weaves in the child's own practice words and gives every trouble letter a "letter spotlight" sentence.
+- Always stars an animate hero, weaves in the child's own practice words and gives every trouble letter a "letter spotlight" sentence.
 - Read-along mode highlights each spoken word, underlines focus letters, and reads one sentence at a time with a dyslexia-friendly pace.
 
 ### 👨‍👩‍👧 Parents Dashboard
@@ -111,9 +111,8 @@ firebase deploy --only firestore:rules
 
 ### *Writing Pattern*
 1. Open **Writing Pattern** → read the shown paragraph.
-2. Write it on a page (a marker works best).
-3. Point the camera at your handwriting and capture.
-4. Review the color-coded letter analysis, confusion pairs and suggestions.
+2. Type the paragraph into the text box and tap **Check my writing**.
+3. Review the color-coded letter analysis, confusion pairs and suggestions.
 
 ### *Practice Writing*
 1. Open **Practice Writing** → draw the shown word on the touch pad.
@@ -155,7 +154,7 @@ lib/
 │   ├── splash_screen.dart         # Boot + Firebase init
 │   ├── login_screen.dart          # Sign in / register (parent or child)
 │   ├── home_screen.dart           # Role router + child practice menu
-│   ├── writing_pattern_screen.dart# Handwriting OCR analysis + camera
+│   ├── writing_pattern_screen.dart# Read-then-type letter practice + analysis
 │   ├── practice_writing_screen.dart# Touch digital-ink practice
 │   ├── speech_pattern_screen.dart # Paragraph reading analysis
 │   ├── train_speech_screen.dart   # Single-word speech training
@@ -182,7 +181,7 @@ lib/
 
 ## Roadmap
 
-- [x] Handwriting analysis (OCR + digital ink)
+- [x] Writing pattern practice + handwriting analysis (digital ink)
 - [x] Speech pattern recognition + speech training
 - [x] AI storytelling with read-along
 - [x] Parents dashboard with progress analytics

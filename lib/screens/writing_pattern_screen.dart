@@ -2,12 +2,14 @@ import 'package:camera/camera.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../services/gamification_service.dart';
 import '../services/letter_analysis.dart';
 import '../services/session_service.dart';
 import '../widgets/kid_feedback.dart';
 
+/// Lets a child practice letter patterns on a real sentence without relying
+/// on unreliable camera handwriting scanning: the app shows a paragraph and
+/// the child types it, then every letter is compared against the target.
 class WritingPatternScreen extends StatefulWidget {
   const WritingPatternScreen({super.key});
 
@@ -17,20 +19,13 @@ class WritingPatternScreen extends StatefulWidget {
 
 class _WritingPatternScreenState extends State<WritingPatternScreen> {
   String _paragraph = 'Loading paragraph...';
-  String _result = '';
-  bool _processing = false;
+  final TextEditingController _typeController = TextEditingController();
 
-  /// The scored comparison of the confirmed scan, rendered as a rich
-  /// analysis card (accuracy, confusion chips, missing letters, exercise).
+  /// The scored comparison of the typed text, rendered as a rich analysis
+  /// card (accuracy, confusion chips, missing letters, exercise).
   WordComparisonResult? _comparison;
-  String _scannedText = '';
-
-  /// Raw OCR text waiting for the user to confirm/correct it before scoring.
-  /// ML Kit's Latin model reads printed text; on a child's handwriting it
-  /// often misreads letters, so we let the parent fix the scan before the
-  /// letter analysis runs.
-  String _scanText = '';
-  final TextEditingController _scanController = TextEditingController();
+  String _typedText = '';
+  int _pickOffset = 0;
 
   @override
   void initState() {
@@ -40,7 +35,7 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
 
   @override
   void dispose() {
-    _scanController.dispose();
+    _typeController.dispose();
     super.dispose();
   }
 
@@ -54,8 +49,9 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
       final data = doc.data();
       if (data != null && data.isNotEmpty) {
         final values = data.values.map((v) => v.toString()).toList();
-        final selected =
-            values[DateTime.now().millisecondsSinceEpoch % values.length];
+        final selected = values[
+            (DateTime.now().millisecondsSinceEpoch + _pickOffset) %
+                values.length];
         if (mounted) setState(() => _paragraph = selected);
       }
     } catch (e) {
@@ -63,70 +59,24 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
     }
   }
 
-  Future<void> _openCamera() async {
-    final cameras = await availableCameras();
-    if (!mounted) return;
-    if (cameras.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('No camera available')));
-      return;
-    }
+  void _newParagraph() {
+    _pickOffset++;
+    _typeController.clear();
     setState(() {
-      _scanText = '';
       _comparison = null;
-      _scannedText = '';
+      _typedText = '';
+      _paragraph = 'Loading paragraph...';
     });
-    final image = await Navigator.push<XFile>(
-      context,
-      MaterialPageRoute(builder: (_) => CameraScreen(camera: cameras.first)),
-    );
-    if (image != null) {
-      _recognize(image);
-    }
+    _loadParagraph();
   }
 
-  Future<void> _recognize(XFile image) async {
-    setState(() => _processing = true);
-    try {
-      final recognizer = TextRecognizer();
-      final inputImage = InputImage.fromFilePath(image.path);
-      final result = await recognizer.processImage(inputImage);
-      recognizer.close();
-      final scan = result.text.trim();
-      if (mounted) {
-        if (scan.isEmpty) {
-          setState(() {
-            _result =
-                'Could not read any text in that photo.\n'
-                'Take a closer, well-lit picture and try again.';
-            _processing = false;
-          });
-        } else {
-          _scanController.text = scan;
-          setState(() {
-            _scanText = scan;
-            _result = '';
-            _processing = false;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _result = 'Text recognition failed';
-          _processing = false;
-        });
-      }
-    }
-  }
-
-  /// Scores the confirmed (and possibly corrected) scan.
-  void _confirmScan() {
-    final text = _scanController.text.trim();
+  void _check() {
+    final text = _typeController.text.trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Type what was written, then tap Score')),
+        const SnackBar(
+          content: Text('Type the paragraph first, then tap Check'),
+        ),
       );
       return;
     }
@@ -134,8 +84,7 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
     _saveSession(comparison);
     setState(() {
       _comparison = comparison;
-      _scannedText = text;
-      _scanText = '';
+      _typedText = text;
     });
   }
 
@@ -167,7 +116,16 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Writing Pattern')),
+      appBar: AppBar(
+        title: const Text('Writing Pattern'),
+        actions: [
+          IconButton(
+            onPressed: _newParagraph,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'New paragraph',
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: SingleChildScrollView(
@@ -181,7 +139,7 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Write this paragraph:',
+                        'Read this, then type it below:',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
@@ -191,76 +149,39 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _processing ? null : _openCamera,
-                icon: const Icon(Icons.camera_alt),
-                label: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  child: Text('Scan Handwriting'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (_processing)
-                const Center(child: CircularProgressIndicator())
-              else if (_scanText.isNotEmpty)
+              if (_comparison == null) ...[
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'We read:',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _scanController,
-                          maxLines: 3,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                            hintText:
-                                'Fix anything the app misread, then Score',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () => setState(() => _scanText = ''),
-                                child: const Text('Retake'),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: FilledButton(
-                                onPressed: _confirmScan,
-                                child: const Text('Score'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                    child: TextField(
+                      controller: _typeController,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: 'Type the paragraph here...',
+                      ),
                     ),
                   ),
-                )
-              else if (_comparison != null)
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _check,
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                    child: Text('Check my writing'),
+                  ),
+                ),
+              ] else
                 _AnalysisCard(
                   comparison: _comparison!,
-                  scanned: _scannedText,
+                  typed: _typedText,
                   target: _paragraph,
                   onRetry: () => setState(() {
                     _comparison = null;
-                    _scannedText = '';
+                    _typedText = '';
+                    _typeController.clear();
                   }),
-                )
-              else if (_result.isNotEmpty)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(_result),
-                  ),
                 ),
             ],
           ),
@@ -270,19 +191,19 @@ class _WritingPatternScreenState extends State<WritingPatternScreen> {
   }
 }
 
-/// Renders the verdict for a handwriting session in a warm, kid-friendly way:
+/// Renders the verdict for a writing session in a warm, kid-friendly way:
 /// a big emoji headline, the whole sentence color-coded letter by letter
 /// (green = right, orange = mixed up, red = missing), the letters the child
 /// mixed up, missing letters and one simple exercise tip.
 class _AnalysisCard extends StatelessWidget {
   final WordComparisonResult comparison;
-  final String scanned;
+  final String typed;
   final String target;
   final VoidCallback onRetry;
 
   const _AnalysisCard({
     required this.comparison,
-    required this.scanned,
+    required this.typed,
     required this.target,
     required this.onRetry,
   });
@@ -304,8 +225,8 @@ class _AnalysisCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final confusions = comparison.confusions.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    final missing = LetterAnalysis.missingLetters(target, scanned);
-    final alignment = LetterAnalysis.alignWords(target, scanned);
+    final missing = LetterAnalysis.missingLetters(target, typed);
+    final alignment = LetterAnalysis.alignWords(target, typed);
     final (emoji, headline, message) = _verdict(comparison.accuracy);
     return Card(
       color: const Color(0xFFFFF8E1),
@@ -435,14 +356,14 @@ class _AnalysisCard extends StatelessWidget {
                 ],
               ),
             ],
-            if (scanned.trim().isNotEmpty) ...[
+            if (typed.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
               const Text(
                 'You wrote:',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
-              Text(scanned, style: const TextStyle(fontSize: 16)),
+              Text(typed, style: const TextStyle(fontSize: 16)),
             ],
             const SizedBox(height: 16),
             Row(
@@ -502,6 +423,8 @@ class _SentencePreview extends StatelessWidget {
   }
 }
 
+/// Simple full-screen camera capture helper, reused by the Flashcard
+/// Recognition screen (which imports this file).
 class CameraScreen extends StatefulWidget {
   final CameraDescription camera;
   const CameraScreen({super.key, required this.camera});
